@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Israel / Palestine — 3,000 Years of History</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #14181f;
+    --panel: #1c222c;
+    --panel2: #232b38;
+    --text: #e8e6e0;
+    --muted: #9aa3b2;
+    --accent: #d4a941;
+    --border: #313b4b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+  header .sub { font-size: 12px; color: var(--muted); }
+  #main { flex: 1; display: flex; min-height: 0; }
+  #map { flex: 1; background: #0e1116; }
+  #panel {
+    width: 360px;
+    min-width: 360px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 18px;
+  }
+  #panel h2 {
+    font-size: 17px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #panel .chip {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+  }
+  #panel .years { font-size: 12px; color: var(--accent); margin-bottom: 12px; }
+  #panel p { font-size: 13.5px; line-height: 1.55; color: #cfd4dc; margin-bottom: 12px; }
+  #panel img {
+    width: 100%;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  #panel .wiki-extract { font-size: 13px; color: var(--muted); }
+  #panel a { color: #7fb0e8; text-decoration: none; }
+  #panel a:hover { text-decoration: underline; }
+  #panel .src-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin: 14px 0 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  #panel .loading { color: var(--muted); font-size: 12px; font-style: italic; }
+  #panel .disclaimer {
+    margin-top: 16px;
+    padding: 10px;
+    background: var(--panel2);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ---- Timeline ---- */
+  #timeline {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 8px 24px 14px;
+    user-select: none;
+  }
+  #events {
+    position: relative;
+    height: 74px;
+    margin-bottom: 2px;
+  }
+  .ev {
+    position: absolute;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: #43506388;
+    border: 2px solid #6b7a92;
+    transform: translateX(-50%);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .ev.past { background: var(--accent); border-color: #e8c56b; }
+  .ev:hover { border-color: #fff; z-index: 30; }
+  .ev .tip {
+    display: none;
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0d1117;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 40;
+  }
+  .ev .tip b { color: var(--accent); }
+  .ev:hover .tip { display: block; }
+  #slider-row { display: flex; align-items: center; gap: 14px; }
+  #playBtn {
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 38px; height: 32px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #playBtn:hover { border-color: var(--accent); }
+  #slider { flex: 1; accent-color: var(--accent); height: 22px; cursor: pointer; }
+  #yearBox { min-width: 170px; text-align: right; }
+  #yearLabel { font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #eraLabel { font-size: 11.5px; color: var(--muted); }
+
+  /* ---- Map labels ---- */
+  .map-label {
+    background: none;
+    border: none;
+    box-shadow: none;
+  }
+  .map-label span {
+    display: inline-block;
+    transform: translate(-50%, -50%);
+    color: #1c2027;
+    font-size: 12px;
+    font-weight: 700;
+    text-shadow: 0 0 4px rgba(255,255,255,0.9), 0 0 8px rgba(255,255,255,0.7);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .leaflet-container { font-family: inherit; }
+  .leaflet-tooltip {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+  }
+  @media (max-width: 820px) {
+    #main { flex-direction: column; }
+    #panel { width: 100%; min-width: 0; max-height: 40%; border-left: none; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Israel / Palestine — 3,000 Years of History</h1>
+  <span class="sub">Drag the slider through time · click territories and timeline events for details</span>
+</header>
+<div id="main">
+  <div id="map"></div>
+  <div id="panel">
+    <h2>Welcome</h2>
+    <p>This map shows, in simplified form, which political entity controlled each part of
+    the Israel/Palestine region and its neighbors from <b>1000 BCE</b> to today.</p>
+    <p><b>Drag the time slider</b> at the bottom (or press ▶ to animate). <b>Click any colored
+    territory</b> on the map, or any <b>event dot</b> above the slider, to see a summary,
+    an illustration, and links to sources.</p>
+    <div class="disclaimer">Borders are simplified, approximate reconstructions for educational
+    purposes. Ancient frontiers were fluid and are debated by historians; several modern
+    boundaries and statuses are disputed. Summaries and images are loaded live from Wikipedia.</div>
+  </div>
+</div>
+<div id="timeline">
+  <div id="events"></div>
+  <div id="slider-row">
+    <button id="playBtn" title="Play / pause">▶</button>
+    <input type="range" id="slider" min="0" max="1000" step="1" value="0">
+    <div id="yearBox">
+      <div id="yearLabel"></div>
+      <div id="eraLabel"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Time scale: piecewise-linear so the modern era isn't cramped
+   ============================================================ */
+const BREAKS = [[-1000, 0], [500, 0.30], [1500, 0.55], [1880, 0.75], [2026, 1]];
+function yearToPos(y) {
+  y = Math.max(-1000, Math.min(2026, y));
+  for (let i = 0; i < BREAKS.length - 1; i++) {
+    const [y0, p0] = BREAKS[i], [y1, p1] = BREAKS[i + 1];
+    if (y <= y1) return p0 + (p1 - p0) * (y - y0) / (y1 - y0);
+  }
+  return 1;
+}
+function posToYear(p) {
+  for (let i = 0; i < BREAKS.length - 1; i++) {
+    const [y0, p0] = BREAKS[i], [y1, p1] = BREAKS[i + 1];
+    if (p <= p1) return Math.round(y0 + (y1 - y0) * (p - p0) / (p1 - p0));
+  }
+  return 2026;
+}
+function fmtYear(y) {
+  if (y < 0) return (-y) + " BCE";
+  if (y === 0) return "1 BCE";
+  return y + " CE";
+}
+
+/* ============================================================
+   Zones: simplified polygons ([lat, lon]) covering the region
+   ============================================================ */
+/* Shared border vertices ([lat, lon]). Every boundary between two zones is
+   built from the SAME point objects on both sides, so polygons meet exactly
+   with no gaps. Coastline points follow real geography (cities as anchors). */
+const P = {
+  // Mediterranean coast anchors
+  ps:  [31.27, 32.31],  // Port Said (Suez Canal mouth)
+  b1:  [31.32, 34.22],  // Rafah beach (Egypt–Gaza border)
+  g1:  [31.59, 34.48],  // northern end of the Gaza Strip, at the sea
+  nc1: [32.32, 34.84],  // Netanya (south coast / north coast split)
+  rh:  [33.09, 35.11],  // Rosh HaNikra (Israel–Lebanon border)
+  ar:  [34.63, 35.97],  // Lebanon–Syria border at the coast
+  // Suez Canal + Gulf of Suez centerline
+  isma:[30.60, 32.30], sz:[29.95, 32.55], gs1:[29.20, 32.70], gs2:[28.30, 33.30], gm:[27.70, 33.90],
+  // Egypt–Israel border (Rafah → Taba)
+  b2:  [31.22, 34.27], b3:[30.50, 34.55], b4:[29.53, 34.88],
+  // Gaza Strip inland perimeter
+  g2:  [31.51, 34.56], g3:[31.32, 34.42],
+  // Green Line (West Bank western/southern edge)
+  w1:  [32.55, 35.25], w2:[32.42, 35.03], w3:[32.10, 34.96], w4:[31.83, 34.98], w5:[31.53, 34.90],
+  w6:  [31.36, 35.02], w7:[31.30, 35.20], w8:[31.36, 35.45],
+  wn1: [32.46, 35.40], wn2:[32.40, 35.55],
+  // Judea / Samaria internal split (roughly the latitude of Jerusalem)
+  js1: [31.83, 35.25], dn:[31.77, 35.53],
+  // Jordan River + Dead Sea centerline
+  r1:  [32.10, 35.54], r2:[31.90, 35.53], ds1:[31.50, 35.47],
+  // Arava valley down to the Gulf of Aqaba
+  av1: [31.05, 35.43], av2:[30.60, 35.25], av3:[30.05, 35.10], a1:[29.53, 34.98],
+  // Negev / coastal-plain split
+  n1:  [31.42, 34.75],
+  // Galilee / northern coastal strip
+  x1:  [32.52, 35.19], gn1:[32.95, 35.22],
+  // Israel–Lebanon Blue Line
+  l1:  [33.10, 35.31], l2:[33.28, 35.57],
+  // Upper Jordan + Sea of Galilee (western shore)
+  j1:  [33.05, 35.62], k1:[32.88, 35.60], k2:[32.79, 35.56], ks:[32.70, 35.58], j2:[32.55, 35.57],
+  // Golan: Mt Hermon, 1974 line, Yarmouk River
+  h1:  [33.33, 35.77], ge1:[33.10, 35.93], y2:[32.68, 35.93], y1:[32.65, 35.78],
+  // Syria–Jordan desert border
+  sj1: [32.35, 36.70], sj2:[32.15, 37.20]
+};
+const ZONES = {
+  egypt:      [[31.20,29.90],[31.47,30.37],[31.53,31.84],P.ps,P.isma,P.sz,P.gs1,P.gs2,P.gm,
+               [27.55,33.10],[27.55,30.60],[29.50,30.30],[30.90,29.95]],
+  sinai:      [P.ps,[31.10,32.65],[31.05,33.20],[31.13,33.80],[31.22,34.05],P.b1,P.b2,P.b3,P.b4,
+               [29.20,34.75],[28.40,34.55],[27.73,34.25],P.gm,P.gs2,P.gs1,P.sz,P.isma],
+  gaza:       [P.b1,[31.42,34.31],[31.52,34.43],P.g1,P.g2,P.g3,P.b2],
+  negev:      [P.b2,P.g3,P.n1,P.w5,P.w6,P.w7,P.w8,P.av1,P.av2,P.av3,P.a1,P.b4,P.b3],
+  southcoast: [P.g1,[31.67,34.56],[31.80,34.64],[32.05,34.76],[32.18,34.80],P.nc1,
+               P.w2,P.w3,P.w4,P.w5,P.n1,P.g3,P.g2],
+  northcoast: [P.nc1,[32.50,34.89],[32.65,34.92],[32.83,34.96],[32.80,35.03],[32.92,35.07],[33.01,35.10],P.rh,
+               P.gn1,P.x1,P.w2],
+  judea:      [P.w4,P.js1,P.dn,P.ds1,P.w8,P.w7,P.w6,P.w5],
+  samaria:    [P.w4,P.w3,P.w2,P.x1,P.w1,P.wn1,P.wn2,P.r1,P.r2,P.dn,P.js1],
+  galilee:    [P.rh,P.l1,P.l2,P.j1,P.k1,P.k2,P.ks,P.j2,P.wn2,P.wn1,P.w1,P.x1,P.gn1],
+  golan:      [P.l2,P.h1,P.ge1,P.y2,P.y1,P.ks,P.k2,P.k1,P.j1],
+  lebanon:    [P.rh,[33.27,35.20],[33.56,35.38],[33.90,35.47],[34.12,35.65],[34.44,35.83],P.ar,
+               [34.45,36.32],[34.00,36.42],[33.60,36.18],[33.42,35.94],P.h1,P.l2,P.l1],
+  syria:      [P.ar,[34.89,35.87],[35.52,35.77],[35.92,35.92],[36.05,36.80],[36.10,37.90],[35.40,38.70],
+               [33.40,38.60],P.sj2,P.sj1,P.y2,P.ge1,P.h1,[33.42,35.94],[33.60,36.18],[34.00,36.42],[34.45,36.32]],
+  jordan:     [P.ks,P.y1,P.y2,P.sj1,P.sj2,[31.10,37.60],[29.87,36.75],[29.53,35.60],P.a1,
+               P.av3,P.av2,P.av1,P.w8,P.ds1,P.dn,P.r2,P.r1,P.wn2,P.j2]
+};
+const ZONE_IDS = Object.keys(ZONES);
+
+/* ============================================================
+   Entities: every political actor that appears on the map
+   ============================================================ */
+const ENTITIES = {
+  egypt3rd:       { name:"Egypt (Third Intermediate Period)", color:"#d4a941", wiki:"Third Intermediate Period of Egypt",
+    blurb:"After the New Kingdom's collapse (~1077 BCE), Egypt fragmented under Libyan and Kushite dynasties but remained the region's southern great power, intervening periodically in Canaan." },
+  egypt_late:     { name:"Egypt (Late Period)", color:"#d4a941", wiki:"Late Period of ancient Egypt",
+    blurb:"Kushite and Saite pharaohs ruled Egypt while contesting the Levant with Assyria and Babylon, backing Judah and Philistia in their revolts against Mesopotamian empires." },
+  israel_united:  { name:"United Monarchy of Israel", color:"#2e6fb7", wiki:"Kingdom of Israel (united monarchy)",
+    blurb:"According to the Hebrew Bible, Saul, David and Solomon united the Israelite tribes (~1047–930 BCE) with Jerusalem as capital and built the First Temple. Its historical extent is debated by archaeologists." },
+  israel_kingdom: { name:"Kingdom of Israel (Samaria)", color:"#4a90d9", wiki:"Kingdom of Israel (Samaria)",
+    blurb:"The northern kingdom, with its capital at Samaria, was the larger and richer of the two Israelite kingdoms until Assyria destroyed it in 722 BCE and deported much of its population (the 'Ten Lost Tribes')." },
+  judah:          { name:"Kingdom of Judah", color:"#3557a7", wiki:"Kingdom of Judah",
+    blurb:"The southern kingdom around Jerusalem, ruled by the Davidic dynasty. It survived Assyria as a vassal but was destroyed by Babylon in 586 BCE, when the First Temple was burned and elites exiled." },
+  philistia:      { name:"Philistia", color:"#b05c6e", wiki:"Philistia",
+    blurb:"Five city-states (Gaza, Ashkelon, Ashdod, Ekron, Gath) of the Philistines, an Aegean-origin people settled on the southern coast ~1175 BCE — the origin of the name 'Palestine'." },
+  phoenicia:      { name:"Phoenicia", color:"#7b3fa0", wiki:"Phoenicia",
+    blurb:"Canaanite maritime city-states — Tyre, Sidon, Byblos — famed for seafaring, purple dye, and spreading the alphabet across the Mediterranean." },
+  aram:           { name:"Aram-Damascus", color:"#c0743c", wiki:"Aram-Damascus",
+    blurb:"The Aramaean kingdom centered on Damascus, chief rival of the northern Kingdom of Israel until both fell to Assyria." },
+  transjordan_k:  { name:"Ammon, Moab & Edom", color:"#a3814f", wiki:"Ammon",
+    blurb:"Three small Semitic kingdoms east and south of the Jordan and Dead Sea, frequent rivals (and occasional vassals) of Israel and Judah." },
+  assyria:        { name:"Neo-Assyrian Empire", color:"#8c3b3b", wiki:"Neo-Assyrian Empire",
+    blurb:"The Mesopotamian superpower that destroyed the Kingdom of Israel (722 BCE), deported populations en masse, and reduced Judah to vassalage. At its peak it ruled from Iran to Egypt." },
+  babylon:        { name:"Neo-Babylonian Empire", color:"#7c5295", wiki:"Neo-Babylonian Empire",
+    blurb:"Nebuchadnezzar II's empire conquered Judah, destroyed Jerusalem and the First Temple in 586 BCE, and exiled the Judean elite to Babylon — the beginning of the Jewish diaspora." },
+  persia:         { name:"Achaemenid (Persian) Empire", color:"#2e8b74", wiki:"Achaemenid Empire",
+    blurb:"Cyrus the Great conquered Babylon in 539 BCE and permitted exiled Judeans to return and rebuild the Temple. The region became the small province of Yehud within a vast, tolerant empire." },
+  macedon:        { name:"Empire of Alexander the Great", color:"#c2703d", wiki:"Wars of Alexander the Great",
+    blurb:"Alexander swept through the Levant in 332 BCE, ending Persian rule and beginning ten centuries of Greek and Roman cultural dominance (Hellenism) in the region." },
+  ptolemies:      { name:"Ptolemaic Kingdom", color:"#e0a34c", wiki:"Ptolemaic Kingdom",
+    blurb:"The Greek dynasty of Egypt founded by Alexander's general Ptolemy. It ruled Judea and the coast for a century (301–198 BCE); the Septuagint Greek Bible was translated in its capital, Alexandria." },
+  seleucids:      { name:"Seleucid Empire", color:"#8f9a3f", wiki:"Seleucid Empire",
+    blurb:"The Greek-Syrian empire that took Judea from the Ptolemies in 198 BCE. Antiochus IV's ban on Jewish practice and desecration of the Temple triggered the Maccabean Revolt." },
+  hasmoneans:     { name:"Hasmonean Kingdom", color:"#2b6cb0", wiki:"Hasmonean dynasty",
+    blurb:"The independent Jewish state born of the Maccabean Revolt (167 BCE). Under John Hyrcanus and Alexander Jannaeus it expanded over Samaria, Galilee, Idumea and the coast, until Rome arrived in 63 BCE." },
+  nabataea:       { name:"Nabataean Kingdom", color:"#c46e52", wiki:"Nabataean Kingdom",
+    blurb:"Arab caravan traders who grew rich on the incense route, carving their capital Petra from rose-red rock. Annexed by Rome in 106 CE as the province of Arabia Petraea." },
+  judea_client:   { name:"Judea (Roman client kingdom)", color:"#5b7fc4", wiki:"Herodian kingdom",
+    blurb:"After Pompey took Jerusalem (63 BCE), Judea became a Roman client state, most famously under Herod the Great (37–4 BCE), who rebuilt the Second Temple on a colossal scale." },
+  rome:           { name:"Roman Empire", color:"#b03030", wiki:"Judaea (Roman province)",
+    blurb:"Direct Roman rule brought two catastrophic Jewish revolts: 66–73 CE (destruction of the Second Temple) and the Bar Kokhba revolt of 132–136 CE, after which Judaea was renamed 'Syria Palaestina'." },
+  byzantium:      { name:"Byzantine Empire", color:"#8e3d8e", wiki:"Palaestina Prima",
+    blurb:"Under the Christian Eastern Roman Empire, Palestine became the 'Holy Land' — filled with churches, monasteries and pilgrims — organized as the provinces of Palaestina Prima, Secunda and Tertia." },
+  rashidun:       { name:"Rashidun Caliphate", color:"#3f8f4f", wiki:"Muslim conquest of the Levant",
+    blurb:"The first caliphate conquered the Levant from Byzantium in 634–641 CE. Jerusalem surrendered peacefully (~637) to Caliph Umar, beginning 1,300 years of mostly Muslim rule." },
+  umayyad:        { name:"Umayyad Caliphate", color:"#2f7d5d", wiki:"Umayyad Caliphate",
+    blurb:"Ruling from nearby Damascus, the Umayyads built the Dome of the Rock (691 CE) and al-Aqsa Mosque on Jerusalem's Temple Mount, making the city Islam's third-holiest site." },
+  abbasid:        { name:"Abbasid Caliphate", color:"#1f6f3f", wiki:"Abbasid Caliphate",
+    blurb:"After 750 CE the caliphate's center moved to Baghdad and Palestine became a valued but peripheral province, gradually passing to semi-independent Egyptian dynasties (Tulunids, Ikhshidids)." },
+  fatimid:        { name:"Fatimid Caliphate", color:"#4fa06a", wiki:"Fatimid Caliphate",
+    blurb:"An Ismaili Shia caliphate ruling from Cairo (from 969). Caliph al-Hakim's destruction of the Holy Sepulchre (1009) became a rallying cry for the Crusades a century later." },
+  hamdanid:       { name:"Hamdanid Emirate", color:"#557d46", wiki:"Hamdanid dynasty",
+    blurb:"An Arab Shia dynasty ruling northern Syria from Aleppo, famous for its court poets and constant border wars with Byzantium." },
+  seljuk:         { name:"Seljuk Empire", color:"#7a9a4a", wiki:"Seljuk Empire",
+    blurb:"Turkic Sunni conquerors who took Syria and Palestine in the 1070s. Reports of disrupted Christian pilgrimage under Seljuk rule helped trigger the First Crusade." },
+  kingdom_jer:    { name:"Kingdom of Jerusalem", color:"#5a7fb5", wiki:"Kingdom of Jerusalem",
+    blurb:"The Crusader state founded in 1099 after the First Crusade captured Jerusalem amid a massacre of its Muslim and Jewish inhabitants. It ruled the Holy Land for 88 years until Hattin (1187)." },
+  crusader_north: { name:"County of Tripoli (Crusader)", color:"#6f93c4", wiki:"County of Tripoli",
+    blurb:"The Crusader state on the Lebanese coast, last of the four to be founded (1102) and, with its great castles like Krak des Chevaliers, one of the last to fall (1289)." },
+  damascus_em:    { name:"Emirate of Damascus (Burids/Zengids)", color:"#6e8f5e", wiki:"Burid dynasty",
+    blurb:"The Muslim emirate of inland Syria that resisted Crusader expansion; under Nur ad-Din the Zengids united Syria and launched the counter-crusade completed by Saladin." },
+  ayyubid:        { name:"Ayyubid Sultanate", color:"#b98a2f", wiki:"Ayyubid dynasty",
+    blurb:"Saladin's dynasty. After crushing the Crusaders at Hattin (1187) he retook Jerusalem, treating its inhabitants with a clemency contrasted ever since with 1099." },
+  acre_kingdom:   { name:"Kingdom of Jerusalem (Acre)", color:"#5a7fb5", wiki:"Kingdom of Jerusalem",
+    blurb:"The rump Crusader kingdom re-established on the coast at Acre by the Third Crusade (1191–92). It survived a century until the Mamluks stormed Acre in 1291." },
+  mamluk:         { name:"Mamluk Sultanate", color:"#7d5a3c", wiki:"Mamluk Sultanate",
+    blurb:"The slave-soldier sultanate of Egypt that stopped the Mongols at Ain Jalut (1260, in the Jezreel Valley) and expelled the last Crusaders (1291), ruling the Holy Land for 250 years." },
+  ottoman:        { name:"Ottoman Empire", color:"#c23b3b", wiki:"Ottoman Syria",
+    blurb:"Sultan Selim I conquered the Levant in 1516–17. Four centuries of Ottoman rule followed: Suleiman rebuilt Jerusalem's walls, and by the late 1800s the first Zionist immigrants were arriving." },
+  mandate_pal:    { name:"Mandatory Palestine (British)", color:"#d77fa1", wiki:"Mandatory Palestine",
+    blurb:"Britain governed Palestine from 1917/1920 under a League of Nations mandate incorporating the Balfour Declaration's promise of a 'Jewish national home' — amid escalating Arab–Jewish conflict." },
+  transjordan:    { name:"Emirate of Transjordan", color:"#c9975b", wiki:"Emirate of Transjordan",
+    blurb:"The British protectorate east of the Jordan carved from the Palestine mandate in 1921 for the Hashemite emir Abdullah I; it became the independent Kingdom of Jordan in 1946." },
+  french_mandate: { name:"French Mandate (Syria & Lebanon)", color:"#6f86d6", wiki:"Mandate for Syria and the Lebanon",
+    blurb:"France ruled Syria and Lebanon under a League of Nations mandate from 1920, per the Sykes–Picot partition of the Ottoman Middle East; both became independent in the 1940s." },
+  egypt_kingdom:  { name:"Kingdom of Egypt", color:"#d4a941", wiki:"Kingdom of Egypt",
+    blurb:"Nominally independent from 1922 under King Fuad and King Farouk, but under heavy British influence until the 1952 revolution brought Nasser to power." },
+  israel:         { name:"State of Israel", color:"#1d4ed8", wiki:"Israel",
+    blurb:"Declared on 14 May 1948 following the UN partition plan, and victorious in the war that followed. Within its 1949 armistice ('Green') lines, Israel is the world's only Jewish-majority state." },
+  jordan_k:       { name:"Kingdom of Jordan", color:"#b07d4f", wiki:"Jordan",
+    blurb:"The Hashemite kingdom east of the Jordan River, independent since 1946. It signed a peace treaty with Israel in 1994 and hosts millions of Palestinian refugees and their descendants." },
+  jordan_wb:      { name:"West Bank (Jordanian annexation)", color:"#c49363", wiki:"Jordanian annexation of the West Bank",
+    blurb:"Jordan held and in 1950 annexed the West Bank and East Jerusalem after the 1948 war — an annexation recognized by almost no one — until Israel captured the territory in 1967." },
+  gaza_egyptian:  { name:"Gaza Strip (Egyptian administration)", color:"#c9b26a", wiki:"All-Palestine Protectorate",
+    blurb:"Egypt administered the Gaza Strip from 1948 to 1967 (nominally as the 'All-Palestine' government) without annexing it; it was crowded with refugees from the 1948 war." },
+  syria_rep:      { name:"Syria", color:"#a05a2c", wiki:"Syria",
+    blurb:"Independent from France in 1946. Syria fought Israel in 1948, 1967 and 1973, losing the Golan Heights; the two countries remain formally at war." },
+  lebanon_rep:    { name:"Lebanon", color:"#3aa17e", wiki:"Lebanon",
+    blurb:"Independent from France in 1943, with a delicate multi-confessional system. Its south has repeatedly been a front line between Israel, the PLO, and later Hezbollah." },
+  egypt_rep:      { name:"Egypt", color:"#d4a941", wiki:"Egypt",
+    blurb:"The Arab world's most populous state. After four wars with Israel, Egypt became the first Arab country to sign a peace treaty with it (1979), recovering the Sinai." },
+  wb_occupied:    { name:"West Bank (Israeli occupation)", color:"#8fae6b", wiki:"Israeli occupation of the West Bank",
+    blurb:"Captured by Israel from Jordan in 1967 and held under military occupation since, with a growing Israeli settlement enterprise considered illegal under international law by most states." },
+  gaza_occupied:  { name:"Gaza Strip (Israeli occupation)", color:"#79a35e", wiki:"Gaza Strip",
+    blurb:"Captured from Egypt in 1967 and under direct Israeli military administration until the Oslo process; densely populated, mostly by 1948 refugees and their descendants." },
+  golan_occupied: { name:"Golan Heights (Israeli-occupied)", color:"#93b0d6", wiki:"Golan Heights",
+    blurb:"Syrian territory captured by Israel in 1967 and effectively annexed in 1981 — a move unrecognized by most of the world." },
+  sinai_occupied: { name:"Sinai (Israeli-occupied)", color:"#a8bdd8", wiki:"Sinai Peninsula",
+    blurb:"Captured from Egypt in the Six-Day War of 1967 and returned in stages by 1982 under the Camp David peace treaty — the first land-for-peace exchange." },
+  pa_westbank:    { name:"West Bank (PA / Israeli occupation)", color:"#3e9c5c", wiki:"West Bank",
+    blurb:"Under the Oslo Accords (1993–95) the Palestinian Authority gained self-rule in parts of the West Bank (Areas A and B, ~40%), while Israel retains overall security control and Area C." },
+  pa_gaza:        { name:"Gaza Strip (Palestinian Authority)", color:"#3e9c5c", wiki:"Gaza Strip",
+    blurb:"Gaza came under Palestinian Authority self-rule with Oslo (1994); Israel withdrew its settlers and soldiers in the 2005 disengagement while keeping control of borders, sea and air." },
+  gaza_hamas:     { name:"Gaza Strip (Hamas administration)", color:"#2c7a4b", wiki:"Gaza Strip",
+    blurb:"Hamas seized internal control of Gaza in 2007, leading to an Israeli-Egyptian blockade and repeated wars — most devastatingly the war that began with the Hamas-led attack of 7 October 2023." }
+};
+
+/* ============================================================
+   Eras: for each start year, which entity holds each zone.
+   An era lasts until the next era's start year.
+   ============================================================ */
+function fill(ent, ov = {}) {
+  const o = {};
+  ZONE_IDS.forEach(z => o[z] = ent);
+  return Object.assign(o, ov);
+}
+const ERAS = [
+  { start: -1000, name: "Iron Age kingdoms", zones: {
+      egypt:"egypt3rd", sinai:"egypt3rd", negev:"israel_united", gaza:"philistia", southcoast:"philistia",
+      northcoast:"israel_united", judea:"israel_united", samaria:"israel_united", galilee:"israel_united",
+      golan:"aram", lebanon:"phoenicia", syria:"aram", jordan:"transjordan_k" } },
+  { start: -930, name: "Divided monarchy", zones: {
+      egypt:"egypt3rd", sinai:"egypt3rd", negev:"judah", gaza:"philistia", southcoast:"philistia",
+      northcoast:"israel_kingdom", judea:"judah", samaria:"israel_kingdom", galilee:"israel_kingdom",
+      golan:"aram", lebanon:"phoenicia", syria:"aram", jordan:"transjordan_k" } },
+  { start: -722, name: "Assyrian domination", zones: {
+      egypt:"egypt_late", sinai:"egypt_late", negev:"judah", gaza:"philistia", southcoast:"philistia",
+      judea:"judah", samaria:"assyria", galilee:"assyria", northcoast:"assyria",
+      golan:"assyria", lebanon:"assyria", syria:"assyria", jordan:"assyria" } },
+  { start: -586, name: "Babylonian rule", zones: fill("babylon", { egypt:"egypt_late", sinai:"egypt_late" }) },
+  { start: -539, name: "Persian rule (province of Yehud)", zones: fill("persia") },
+  { start: -332, name: "Alexander's conquest", zones: fill("macedon") },
+  { start: -301, name: "Ptolemaic rule", zones: fill("ptolemies", { syria:"seleucids" }) },
+  { start: -198, name: "Seleucid rule", zones: fill("seleucids", { egypt:"ptolemies", sinai:"ptolemies", negev:"nabataea", jordan:"nabataea" }) },
+  { start: -140, name: "Hasmonean independence", zones: {
+      egypt:"ptolemies", sinai:"ptolemies", negev:"nabataea", jordan:"nabataea",
+      gaza:"hasmoneans", southcoast:"hasmoneans", northcoast:"hasmoneans",
+      judea:"hasmoneans", samaria:"hasmoneans", galilee:"hasmoneans", golan:"hasmoneans",
+      lebanon:"seleucids", syria:"seleucids" } },
+  { start: -63, name: "Roman conquest — client kings", zones: {
+      egypt:"ptolemies", sinai:"ptolemies", negev:"nabataea", jordan:"nabataea",
+      gaza:"judea_client", southcoast:"judea_client", northcoast:"judea_client",
+      judea:"judea_client", samaria:"judea_client", galilee:"judea_client", golan:"judea_client",
+      lebanon:"rome", syria:"rome" } },
+  { start: -30, name: "Rome annexes Egypt", zones: {
+      egypt:"rome", sinai:"rome", negev:"nabataea", jordan:"nabataea",
+      gaza:"judea_client", southcoast:"judea_client", northcoast:"judea_client",
+      judea:"judea_client", samaria:"judea_client", galilee:"judea_client", golan:"judea_client",
+      lebanon:"rome", syria:"rome" } },
+  { start: 6, name: "Roman province of Judaea", zones: fill("rome", { negev:"nabataea", jordan:"nabataea" }) },
+  { start: 106, name: "Roman Empire (Syria Palaestina)", zones: fill("rome") },
+  { start: 395, name: "Byzantine Palaestina", zones: fill("byzantium") },
+  { start: 636, name: "Rashidun conquest", zones: fill("rashidun") },
+  { start: 661, name: "Umayyad Caliphate", zones: fill("umayyad") },
+  { start: 750, name: "Abbasid Caliphate", zones: fill("abbasid") },
+  { start: 970, name: "Fatimid rule", zones: fill("fatimid", { syria:"hamdanid" }) },
+  { start: 1073, name: "Seljuk conquest", zones: fill("seljuk", { egypt:"fatimid", sinai:"fatimid", gaza:"fatimid", southcoast:"fatimid", negev:"fatimid" }) },
+  { start: 1099, name: "Crusader states", zones: {
+      egypt:"fatimid", sinai:"fatimid", gaza:"fatimid", negev:"kingdom_jer",
+      southcoast:"kingdom_jer", northcoast:"kingdom_jer", judea:"kingdom_jer", samaria:"kingdom_jer",
+      galilee:"kingdom_jer", jordan:"kingdom_jer", golan:"damascus_em", lebanon:"crusader_north", syria:"damascus_em" } },
+  { start: 1187, name: "Saladin's reconquest", zones: fill("ayyubid", { lebanon:"crusader_north" }) },
+  { start: 1192, name: "Third Crusade — coastal kingdom", zones: fill("ayyubid", { northcoast:"acre_kingdom", lebanon:"crusader_north" }) },
+  { start: 1260, name: "Mamluks halt the Mongols", zones: fill("mamluk", { northcoast:"acre_kingdom", lebanon:"crusader_north" }) },
+  { start: 1291, name: "Mamluk rule", zones: fill("mamluk") },
+  { start: 1516, name: "Ottoman rule", zones: fill("ottoman") },
+  { start: 1920, name: "British & French mandates", zones: {
+      egypt:"egypt_kingdom", sinai:"egypt_kingdom",
+      gaza:"mandate_pal", southcoast:"mandate_pal", northcoast:"mandate_pal", negev:"mandate_pal",
+      judea:"mandate_pal", samaria:"mandate_pal", galilee:"mandate_pal",
+      jordan:"transjordan", golan:"french_mandate", lebanon:"french_mandate", syria:"french_mandate" } },
+  { start: 1948, name: "Israel & the 1948 war", zones: {
+      egypt:"egypt_rep", sinai:"egypt_rep", gaza:"gaza_egyptian",
+      southcoast:"israel", northcoast:"israel", negev:"israel", galilee:"israel",
+      judea:"jordan_wb", samaria:"jordan_wb", jordan:"jordan_k",
+      golan:"syria_rep", syria:"syria_rep", lebanon:"lebanon_rep" } },
+  { start: 1967, name: "After the Six-Day War", zones: {
+      egypt:"egypt_rep", sinai:"sinai_occupied", gaza:"gaza_occupied",
+      southcoast:"israel", northcoast:"israel", negev:"israel", galilee:"israel",
+      judea:"wb_occupied", samaria:"wb_occupied", jordan:"jordan_k",
+      golan:"golan_occupied", syria:"syria_rep", lebanon:"lebanon_rep" } },
+  { start: 1982, name: "Sinai returned to Egypt", zones: {
+      egypt:"egypt_rep", sinai:"egypt_rep", gaza:"gaza_occupied",
+      southcoast:"israel", northcoast:"israel", negev:"israel", galilee:"israel",
+      judea:"wb_occupied", samaria:"wb_occupied", jordan:"jordan_k",
+      golan:"golan_occupied", syria:"syria_rep", lebanon:"lebanon_rep" } },
+  { start: 1994, name: "Oslo era — Palestinian Authority", zones: {
+      egypt:"egypt_rep", sinai:"egypt_rep", gaza:"pa_gaza",
+      southcoast:"israel", northcoast:"israel", negev:"israel", galilee:"israel",
+      judea:"pa_westbank", samaria:"pa_westbank", jordan:"jordan_k",
+      golan:"golan_occupied", syria:"syria_rep", lebanon:"lebanon_rep" } },
+  { start: 2007, name: "Present day", zones: {
+      egypt:"egypt_rep", sinai:"egypt_rep", gaza:"gaza_hamas",
+      southcoast:"israel", northcoast:"israel", negev:"israel", galilee:"israel",
+      judea:"pa_westbank", samaria:"pa_westbank", jordan:"jordan_k",
+      golan:"golan_occupied", syria:"syria_rep", lebanon:"lebanon_rep" } }
+];
+
+/* ============================================================
+   Key events shown above the slider
+   ============================================================ */
+const EVENTS = [
+  { year:-1000, title:"Kingdom of David", wiki:"David", blurb:"David establishes Jerusalem as capital of the Israelite kingdom (traditional dating)." },
+  { year:-957, title:"First Temple built", wiki:"Solomon's Temple", blurb:"Solomon builds the First Temple in Jerusalem, per the Hebrew Bible." },
+  { year:-930, title:"Kingdom splits", wiki:"Kingdom of Israel (Samaria)", blurb:"The united monarchy divides into Israel (north) and Judah (south)." },
+  { year:-722, title:"Assyria destroys Israel", wiki:"Assyrian captivity", blurb:"Samaria falls; the northern tribes are deported ('Ten Lost Tribes')." },
+  { year:-586, title:"First Temple destroyed", wiki:"Siege of Jerusalem (587 BC)", blurb:"Babylon burns Jerusalem and exiles Judah's elite — the Babylonian captivity." },
+  { year:-539, title:"Return from exile", wiki:"Return to Zion", blurb:"Cyrus of Persia lets the exiled Judeans return and rebuild the Temple." },
+  { year:-332, title:"Alexander conquers Levant", wiki:"Wars of Alexander the Great", blurb:"Persian rule ends; the Hellenistic age begins." },
+  { year:-167, title:"Maccabean Revolt", wiki:"Maccabean Revolt", blurb:"Jewish revolt against Seleucid religious persecution; origin of Hanukkah and the Hasmonean state." },
+  { year:-63, title:"Pompey takes Jerusalem", wiki:"Siege of Jerusalem (63 BC)", blurb:"Rome ends Hasmonean independence; Judea becomes a client state." },
+  { year:-37, title:"Herod the Great", wiki:"Herod the Great", blurb:"Rome's client king rebuilds the Second Temple on a monumental scale." },
+  { year:30, title:"Crucifixion of Jesus", wiki:"Crucifixion of Jesus", blurb:"Jesus of Nazareth is executed in Jerusalem under Pontius Pilate; Christianity is born." },
+  { year:70, title:"Second Temple destroyed", wiki:"Siege of Jerusalem (70 CE)", blurb:"Rome crushes the Great Jewish Revolt and burns the Temple; only the Western Wall remains." },
+  { year:132, title:"Bar Kokhba revolt", wiki:"Bar Kokhba revolt", blurb:"The last Jewish revolt is crushed; Judaea is renamed Syria Palaestina and Jews barred from Jerusalem." },
+  { year:326, title:"Holy Sepulchre founded", wiki:"Church of the Holy Sepulchre", blurb:"Constantine's mother Helena identifies the sites of the crucifixion; Christian Holy Land era begins." },
+  { year:614, title:"Sasanian conquest", wiki:"Sasanian conquest of Jerusalem", blurb:"Persia briefly seizes Jerusalem from Byzantium; the True Cross is carried off." },
+  { year:638, title:"Muslim conquest of Jerusalem", wiki:"Siege of Jerusalem (636–637)", blurb:"The city surrenders to Caliph Umar, beginning 13 centuries of mostly Muslim rule." },
+  { year:691, title:"Dome of the Rock", wiki:"Dome of the Rock", blurb:"The Umayyads complete the shrine on the Temple Mount / Haram al-Sharif." },
+  { year:1099, title:"First Crusade takes Jerusalem", wiki:"Siege of Jerusalem (1099)", blurb:"Crusaders storm the city and massacre its inhabitants; the Kingdom of Jerusalem is founded." },
+  { year:1187, title:"Battle of Hattin", wiki:"Battle of Hattin", blurb:"Saladin destroys the Crusader army and retakes Jerusalem." },
+  { year:1260, title:"Ain Jalut", wiki:"Battle of Ain Jalut", blurb:"The Mamluks defeat the Mongols in the Jezreel Valley — a turning point in world history." },
+  { year:1291, title:"Fall of Acre", wiki:"Siege of Acre (1291)", blurb:"The Mamluks take the last Crusader capital; the Crusader states end." },
+  { year:1517, title:"Ottoman conquest", wiki:"Ottoman–Mamluk War (1516–1517)", blurb:"Selim I defeats the Mamluks; 400 years of Ottoman rule begin." },
+  { year:1882, title:"First Aliyah", wiki:"First Aliyah", blurb:"The first wave of modern Zionist immigration to Ottoman Palestine." },
+  { year:1897, title:"First Zionist Congress", wiki:"First Zionist Congress", blurb:"Theodor Herzl convenes the congress in Basel, launching political Zionism." },
+  { year:1917, title:"Balfour Declaration", wiki:"Balfour Declaration", blurb:"Britain declares support for a 'national home for the Jewish people' in Palestine." },
+  { year:1920, title:"British Mandate", wiki:"Mandatory Palestine", blurb:"Britain and France divide the Ottoman Levant; Britain governs Palestine." },
+  { year:1936, title:"Arab revolt in Palestine", wiki:"1936–1939 Arab revolt in Palestine", blurb:"A nationwide Arab uprising against British rule and Jewish immigration." },
+  { year:1947, title:"UN Partition Plan", wiki:"United Nations Partition Plan for Palestine", blurb:"The UN votes to split Palestine into Jewish and Arab states; Arabs reject it, civil war begins." },
+  { year:1948, title:"Independence & Nakba", wiki:"1948 Arab–Israeli War", blurb:"Israel declares independence and wins the first Arab–Israeli war; ~700,000 Palestinians flee or are expelled (the Nakba)." },
+  { year:1956, title:"Suez Crisis", wiki:"Suez Crisis", blurb:"Israel, Britain and France attack Egypt over the Suez Canal, then withdraw under superpower pressure." },
+  { year:1964, title:"PLO founded", wiki:"Palestine Liberation Organization", blurb:"The Palestine Liberation Organization is established in Cairo." },
+  { year:1967, title:"Six-Day War", wiki:"Six-Day War", blurb:"Israel captures the West Bank, Gaza, Sinai, East Jerusalem and the Golan Heights." },
+  { year:1973, title:"Yom Kippur War", wiki:"Yom Kippur War", blurb:"Egypt and Syria launch a surprise attack; the war paves the way for Egypt–Israel peace." },
+  { year:1979, title:"Egypt–Israel peace", wiki:"Egypt–Israel peace treaty", blurb:"The first Arab–Israeli peace treaty; Israel returns the Sinai by 1982." },
+  { year:1987, title:"First Intifada", wiki:"First Intifada", blurb:"A Palestinian uprising against the occupation; Hamas is founded the same year." },
+  { year:1993, title:"Oslo Accords", wiki:"Oslo Accords", blurb:"Israel and the PLO recognize each other; the Palestinian Authority is created." },
+  { year:1995, title:"Rabin assassinated", wiki:"Assassination of Yitzhak Rabin", blurb:"An Israeli extremist kills the prime minister who signed Oslo." },
+  { year:2000, title:"Second Intifada", wiki:"Second Intifada", blurb:"After Camp David talks fail, a far bloodier uprising erupts (2000–2005)." },
+  { year:2005, title:"Gaza disengagement", wiki:"Israeli disengagement from Gaza", blurb:"Israel withdraws all settlers and soldiers from inside the Gaza Strip." },
+  { year:2007, title:"Hamas takes Gaza", wiki:"Battle of Gaza (2007)", blurb:"Hamas ousts the Palestinian Authority from Gaza; blockade and repeated wars follow." },
+  { year:2020, title:"Abraham Accords", wiki:"Abraham Accords", blurb:"Israel normalizes relations with the UAE, Bahrain and Morocco." },
+  { year:2023, title:"Oct 7 attack & Gaza war", wiki:"Gaza war", blurb:"Hamas-led attack kills ~1,200 in Israel; the ensuing war devastates Gaza with an enormous civilian toll." }
+];
+
+/* ============================================================
+   Map setup
+   ============================================================ */
+const map = L.map("map", { zoomSnap: 0.25, attributionControl: true });
+map.fitBounds([[29.2, 33.2], [34.4, 37.8]]);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png", {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 12, minZoom: 5
+}).addTo(map);
+
+const layerGroup = L.layerGroup().addTo(map);
+const labelGroup = L.layerGroup().addTo(map);
+
+function polyCentroid(pts) {
+  // signed-area centroid; good enough for these simple shapes
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [y1, x1] = pts[i], [y2, x2] = pts[(i + 1) % pts.length];
+    const f = x1 * y2 - x2 * y1;
+    a += f; cx += (x1 + x2) * f; cy += (y1 + y2) * f;
+  }
+  a *= 0.5;
+  if (Math.abs(a) < 1e-9) return pts[0];
+  return [cy / (6 * a), cx / (6 * a)];
+}
+function polyArea(pts) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [y1, x1] = pts[i], [y2, x2] = pts[(i + 1) % pts.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a / 2);
+}
+
+let currentEraIndex = -1;
+let currentYear = -1000;
+
+function eraIndexFor(year) {
+  let idx = 0;
+  for (let i = 0; i < ERAS.length; i++) if (ERAS[i].start <= year) idx = i;
+  return idx;
+}
+function eraSpanText(idx) {
+  const from = ERAS[idx].start;
+  const to = idx + 1 < ERAS.length ? ERAS[idx + 1].start : 2026;
+  return fmtYear(from) + " – " + (idx + 1 < ERAS.length ? fmtYear(to) : "today");
+}
+
+/* Merge an entity's zones into outline ring(s): edges shared by two of its
+   zones are internal and cancel out; the remaining edges are chained into
+   closed rings. Zones share exact vertex objects, so this is lossless. */
+function dissolveZones(zoneIds) {
+  const pt = {}, count = {}, edges = [];
+  const key = p => p[0] + "," + p[1];
+  for (const z of zoneIds) {
+    const poly = ZONES[z];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const ka = key(a), kb = key(b);
+      pt[ka] = a; pt[kb] = b;
+      const ek = ka < kb ? ka + "|" + kb : kb + "|" + ka;
+      count[ek] = (count[ek] || 0) + 1;
+      edges.push([ka, kb, ek]);
+    }
+  }
+  const boundary = edges.filter(e => count[e[2]] === 1);
+  const adj = {};
+  boundary.forEach((e, i) => {
+    (adj[e[0]] = adj[e[0]] || []).push(i);
+    (adj[e[1]] = adj[e[1]] || []).push(i);
+  });
+  const used = new Array(boundary.length).fill(false);
+  const rings = [];
+  for (let s = 0; s < boundary.length; s++) {
+    if (used[s]) continue;
+    used[s] = true;
+    const startKey = boundary[s][0];
+    let curKey = boundary[s][1];
+    const ring = [pt[startKey], pt[curKey]];
+    while (curKey !== startKey) {
+      const next = (adj[curKey] || []).find(i => !used[i]);
+      if (next === undefined) break; // open chain (shouldn't happen)
+      used[next] = true;
+      const e = boundary[next];
+      curKey = e[0] === curKey ? e[1] : e[0];
+      ring.push(pt[curKey]);
+    }
+    ring.pop(); // last point closes the ring; Leaflet closes implicitly
+    if (ring.length >= 3) rings.push(ring);
+  }
+  return rings;
+}
+
+function drawEra(idx) {
+  layerGroup.clearLayers();
+  labelGroup.clearLayers();
+  const era = ERAS[idx];
+  const byEntity = {};
+  for (const [zone, entId] of Object.entries(era.zones)) {
+    (byEntity[entId] = byEntity[entId] || []).push(zone);
+  }
+  for (const [entId, zones] of Object.entries(byEntity)) {
+    const ent = ENTITIES[entId];
+    for (const ring of dissolveZones(zones)) {
+      L.polygon(ring, {
+        color: "#ffffff", weight: 1.1, opacity: 0.8,
+        fillColor: ent.color, fillOpacity: 0.55
+      })
+        .bindTooltip(ent.name, { sticky: true })
+        .on("click", () => showEntity(entId, idx))
+        .addTo(layerGroup);
+    }
+  }
+  // one label per entity, on its largest zone
+  for (const [entId, zones] of Object.entries(byEntity)) {
+    let best = zones[0], bestA = -1;
+    for (const z of zones) {
+      const a = polyArea(ZONES[z]);
+      if (a > bestA) { bestA = a; best = z; }
+    }
+    const c = polyCentroid(ZONES[best]);
+    L.marker(c, {
+      interactive: false,
+      icon: L.divIcon({ className: "map-label", html: "<span>" + ENTITIES[entId].name.replace(/ \(.*\)$/, "") + "</span>" })
+    }).addTo(labelGroup);
+  }
+}
+
+/* ============================================================
+   Side panel + Wikipedia summaries
+   ============================================================ */
+const panel = document.getElementById("panel");
+const wikiCache = {};
+async function wikiSummary(title) {
+  if (wikiCache[title]) return wikiCache[title];
+  const url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title.replace(/ /g, "_"));
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("wiki " + res.status);
+  const data = await res.json();
+  wikiCache[title] = data;
+  return data;
+}
+function esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function renderPanel({ chipColor, title, years, blurb, wiki }) {
+  panel.innerHTML =
+    '<h2>' + (chipColor ? '<span class="chip" style="background:' + chipColor + '"></span>' : '') + esc(title) + '</h2>' +
+    '<div class="years">' + esc(years) + '</div>' +
+    '<p>' + esc(blurb) + '</p>' +
+    '<div id="wiki-slot"><div class="loading">Loading illustration &amp; summary from Wikipedia…</div></div>' +
+    '<div class="src-title">Sources</div>' +
+    '<p style="margin-bottom:4px"><a href="https://en.wikipedia.org/wiki/' + encodeURIComponent(wiki.replace(/ /g, "_")) + '" target="_blank" rel="noopener">Wikipedia: ' + esc(wiki) + ' ↗</a></p>';
+  const slot = document.getElementById("wiki-slot");
+  wikiSummary(wiki).then(d => {
+    let html = "";
+    if (d.thumbnail && d.thumbnail.source) {
+      html += '<img src="' + d.thumbnail.source.replace(/\/\d+px-/, "/480px-") + '" alt="">';
+    }
+    if (d.extract) html += '<p class="wiki-extract">' + esc(d.extract) + '</p>';
+    slot.innerHTML = html || "";
+  }).catch(() => { slot.innerHTML = ""; });
+}
+function showEntity(entId, eraIdx) {
+  const ent = ENTITIES[entId];
+  renderPanel({
+    chipColor: ent.color,
+    title: ent.name,
+    years: "On this map: " + eraSpanText(eraIdx) + " · " + ERAS[eraIdx].name,
+    blurb: ent.blurb,
+    wiki: ent.wiki
+  });
+}
+function showEvent(ev) {
+  renderPanel({
+    chipColor: "#d4a941",
+    title: ev.title,
+    years: fmtYear(ev.year),
+    blurb: ev.blurb,
+    wiki: ev.wiki
+  });
+}
+
+/* ============================================================
+   Timeline: events + slider + playback
+   ============================================================ */
+const slider = document.getElementById("slider");
+const yearLabel = document.getElementById("yearLabel");
+const eraLabel = document.getElementById("eraLabel");
+const eventsBox = document.getElementById("events");
+const evEls = [];
+
+EVENTS.forEach((ev, i) => {
+  const el = document.createElement("div");
+  el.className = "ev";
+  el.style.left = (yearToPos(ev.year) * 100) + "%";
+  el.style.bottom = (6 + (i % 3) * 21) + "px";
+  el.innerHTML = '<div class="tip"><b>' + esc(fmtYear(ev.year)) + '</b> — ' + esc(ev.title) + '</div>';
+  el.addEventListener("click", () => {
+    setYear(ev.year);
+    slider.value = Math.round(yearToPos(ev.year) * 1000);
+    showEvent(ev);
+  });
+  eventsBox.appendChild(el);
+  evEls.push(el);
+});
+
+function setYear(y) {
+  currentYear = y;
+  yearLabel.textContent = fmtYear(y);
+  const idx = eraIndexFor(y);
+  eraLabel.textContent = ERAS[idx].name;
+  if (idx !== currentEraIndex) {
+    currentEraIndex = idx;
+    drawEra(idx);
+  }
+  EVENTS.forEach((ev, i) => evEls[i].classList.toggle("past", ev.year <= y));
+}
+
+slider.addEventListener("input", () => setYear(posToYear(slider.value / 1000)));
+
+const playBtn = document.getElementById("playBtn");
+let playTimer = null;
+playBtn.addEventListener("click", () => {
+  if (playTimer) {
+    clearInterval(playTimer);
+    playTimer = null;
+    playBtn.textContent = "▶";
+    return;
+  }
+  if (+slider.value >= 1000) slider.value = 0;
+  playBtn.textContent = "⏸";
+  playTimer = setInterval(() => {
+    let v = +slider.value + 2;
+    if (v >= 1000) {
+      v = 1000;
+      clearInterval(playTimer);
+      playTimer = null;
+      playBtn.textContent = "▶";
+    }
+    slider.value = v;
+    setYear(posToYear(v / 1000));
+  }, 90);
+});
+
+// optional ?year=1948 URL parameter for shareable links
+const qy = parseInt(new URLSearchParams(location.search).get("year"), 10);
+const startYear = Number.isFinite(qy) ? Math.max(-1000, Math.min(2026, qy)) : -1000;
+slider.value = Math.round(yearToPos(startYear) * 1000);
+setYear(startYear);
+</script>
+</body>
+</html>
