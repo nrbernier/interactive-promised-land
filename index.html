@@ -18,6 +18,8 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
+  body { height: 100dvh; }
+  button, input[type="range"], .ev { touch-action: manipulation; }
   body {
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     background: var(--bg);
@@ -81,6 +83,22 @@
     padding-top: 12px;
   }
   #panel .loading { color: var(--muted); font-size: 12px; font-style: italic; }
+  #panelClose {
+    display: none;
+    position: sticky;
+    top: 0;
+    float: right;
+    margin: -6px -6px 0 8px;
+    width: 34px; height: 34px;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10;
+  }
   #panel .disclaimer {
     margin-top: 16px;
     padding: 10px;
@@ -173,8 +191,38 @@
     font-size: 12px;
   }
   @media (max-width: 820px) {
+    header { padding: 8px 12px; gap: 8px; }
+    header h1 { font-size: 15px; }
+    header .sub { display: none; }
     #main { flex-direction: column; }
-    #panel { width: 100%; min-width: 0; max-height: 40%; border-left: none; border-top: 1px solid var(--border); }
+    #panel {
+      display: none;
+      width: 100%; min-width: 0;
+      max-height: 45%;
+      border-left: none;
+      border-top: 1px solid var(--border);
+      padding: 14px;
+    }
+    #panel.open { display: block; }
+    #panelClose { display: block; }
+    /* bigger, tappable event dots */
+    #events { height: 62px; margin-bottom: 6px; }
+    .ev { width: 14px; height: 14px; }
+    .ev::after {
+      content: "";
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 34px; height: 34px;
+      transform: translate(-50%, -50%);
+    }
+    .ev .tip { display: none !important; } /* hover tips are useless on touch; tap opens details */
+    #timeline { padding: 6px 14px 12px; }
+    #slider-row { gap: 10px; }
+    #playBtn { width: 46px; height: 42px; font-size: 16px; flex: 0 0 auto; }
+    #slider { height: 34px; }
+    #yearBox { min-width: 92px; }
+    #yearLabel { font-size: 16px; }
+    #eraLabel { font-size: 10.5px; }
   }
 </style>
 </head>
@@ -185,16 +233,19 @@
 </header>
 <div id="main">
   <div id="map"></div>
-  <div id="panel">
-    <h2>Welcome</h2>
-    <p>This map shows, in simplified form, which political entity controlled each part of
-    the Israel/Palestine region and its neighbors from <b>1000 BCE</b> to today.</p>
-    <p><b>Drag the time slider</b> at the bottom (or press ▶ to animate). <b>Click any colored
-    territory</b> on the map, or any <b>event dot</b> above the slider, to see a summary,
-    an illustration, and links to sources.</p>
-    <div class="disclaimer">Borders are simplified, approximate reconstructions for educational
-    purposes. Ancient frontiers were fluid and are debated by historians; several modern
-    boundaries and statuses are disputed. Summaries and images are loaded live from Wikipedia.</div>
+  <div id="panel" class="open">
+    <button id="panelClose" title="Close panel" aria-label="Close panel">✕</button>
+    <div id="panel-content">
+      <h2>Welcome</h2>
+      <p>This map shows, in simplified form, which political entity controlled each part of
+      the Israel/Palestine region and its neighbors from <b>1000 BCE</b> to today.</p>
+      <p><b>Drag the time slider</b> at the bottom (or press ▶ to animate). <b>Tap any colored
+      territory</b> on the map, or any <b>event dot</b> above the slider, to see a summary,
+      an illustration, and links to sources.</p>
+      <div class="disclaimer">Borders are simplified, approximate reconstructions for educational
+      purposes. Ancient frontiers were fluid and are debated by historians; several modern
+      boundaries and statuses are disputed. Summaries and images are loaded live from Wikipedia.</div>
+    </div>
   </div>
 </div>
 <div id="timeline">
@@ -683,6 +734,11 @@ function drawEra(idx) {
    Side panel + Wikipedia summaries
    ============================================================ */
 const panel = document.getElementById("panel");
+const panelContent = document.getElementById("panel-content");
+document.getElementById("panelClose").addEventListener("click", () => {
+  panel.classList.remove("open");
+  map.invalidateSize();
+});
 const wikiCache = {};
 async function wikiSummary(title) {
   if (wikiCache[title]) return wikiCache[title];
@@ -697,7 +753,12 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function renderPanel({ chipColor, title, years, blurb, wiki }) {
-  panel.innerHTML =
+  if (!panel.classList.contains("open")) {
+    panel.classList.add("open");
+    map.invalidateSize();
+  }
+  panel.scrollTop = 0;
+  panelContent.innerHTML =
     '<h2>' + (chipColor ? '<span class="chip" style="background:' + chipColor + '"></span>' : '') + esc(title) + '</h2>' +
     '<div class="years">' + esc(years) + '</div>' +
     '<p>' + esc(blurb) + '</p>' +
